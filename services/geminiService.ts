@@ -14,15 +14,16 @@ export const generateEbookOutline = async (topic: string): Promise<{ title: stri
   const model = "gemini-2.5-flash";
   
   const prompt = `
-    Atue como um editor de livros best-seller e estrategista de marketing digital.
-    Crie a estrutura de um e-book altamente lucrativo e vendável sobre o tema: "${topic}".
+    Atue como um editor chefe de uma grande editora de best-sellers e especialista em marketing de resposta direta.
+    Sua tarefa é criar a estrutura de um e-book altamente lucrativo ("high ticket") sobre o tema: "${topic}".
     
-    O e-book deve ter exatamente 10 capítulos.
-    O título deve ser chamativo, usando gatilhos mentais.
-    A descrição deve ser persuasiva (copywriting para vendas).
-    Defina o público-alvo.
+    Requisitos OBRIGATÓRIOS:
+    1. O e-book deve ter EXATAMENTE 10 capítulos.
+    2. Título: Deve ser magnético, usar gatilhos mentais (curiosidade, promessa, ganância) e parecer um best-seller da Amazon.
+    3. Descrição: Um texto persuasivo de vendas (copywriting) focado na dor e no desejo do cliente.
+    4. Capítulos: Devem seguir uma ordem lógica de aprendizado, do básico ao avançado, com títulos instigantes.
     
-    Retorne APENAS um objeto JSON com a seguinte estrutura.
+    Retorne APENAS um objeto JSON válido.
   `;
 
   try {
@@ -34,18 +35,18 @@ export const generateEbookOutline = async (topic: string): Promise<{ title: stri
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            title: { type: Type.STRING, description: "Um título chamativo e vendável para o ebook." },
-            description: { type: Type.STRING, description: "Uma descrição curta e persuasiva para a página de vendas (máx 300 caracteres)." },
-            targetAudience: { type: Type.STRING, description: "Descrição do público alvo." },
+            title: { type: Type.STRING, description: "Título matador para o e-book." },
+            description: { type: Type.STRING, description: "Copy de vendas persuasiva para o livro." },
+            targetAudience: { type: Type.STRING, description: "Definição clara do avatar/público alvo." },
             chapters: {
               type: Type.ARRAY,
-              description: "Lista de 10 capítulos.",
+              description: "Lista exata de 10 capítulos.",
               items: {
                 type: Type.OBJECT,
                 properties: {
                   id: { type: Type.INTEGER },
-                  title: { type: Type.STRING, description: "Título do capítulo." },
-                  description: { type: Type.STRING, description: "Breve resumo do que será abordado no capítulo." }
+                  title: { type: Type.STRING, description: "Título atraente do capítulo." },
+                  description: { type: Type.STRING, description: "O que o leitor vai aprender neste capítulo." }
                 },
                 required: ["id", "title", "description"]
               }
@@ -70,26 +71,24 @@ export const generateEbookOutline = async (topic: string): Promise<{ title: stri
  * Step 2: Generate the Cover Image
  */
 export const generateBookCover = async (title: string, topic: string, audience: string): Promise<string> => {
-  // Using Flash Image (Nano Banana) for speed and efficiency as per instructions for general image tasks unless high res requested
   const model = "gemini-2.5-flash-image"; 
   
   const prompt = `
-    A professional, high-converting ebook cover for a book titled "${title}".
+    A stunning, commercial book cover design for a book titled "${title}".
     Topic: ${topic}.
     Target Audience: ${audience}.
-    Style: Minimalist, modern, bold typography, trustworthy, high quality, digital marketing aesthetic.
-    No text on the image other than the title if possible, or just abstract symbolic imagery.
-    Aspect Ratio 2:3.
+    Style: Professional, best-seller aesthetic, bold typography, high contrast.
+    The image should look like a finished product.
+    Minimal text (only the title).
+    Aspect Ratio 2:3 (Vertical).
   `;
 
   try {
     const response = await ai.models.generateContent({
       model,
       contents: prompt,
-      // No responseMimeType for image models usually, but the SDK handles base64 in parts
     });
 
-    // Check for inline data in parts
     const parts = response.candidates?.[0]?.content?.parts;
     if (parts) {
       for (const part of parts) {
@@ -102,7 +101,6 @@ export const generateBookCover = async (title: string, topic: string, audience: 
     throw new Error("No image data returned");
   } catch (error) {
     console.error("Error generating cover:", error);
-    // Return a fallback placeholder if generation fails to avoid breaking the UI
     return "";
   }
 };
@@ -114,17 +112,25 @@ export const generateChapterContent = async (chapterTitle: string, bookTitle: st
   const model = "gemini-2.5-flash";
   
   const prompt = `
-    Escreva o conteúdo completo para o capítulo: "${chapterTitle}" do e-book "${bookTitle}".
+    Escreva o conteúdo COMPLETO e PROFUNDO para o capítulo: "${chapterTitle}" do livro "${bookTitle}".
     Contexto do livro: ${bookContext}.
     
-    Instruções:
-    - Escreva em português do Brasil.
-    - Use formatação Markdown (títulos, listas, negrito, itálico).
-    - O tom deve ser profissional, educativo e engajador.
-    - Divida o texto em subtópicos lógicos.
-    - Inclua pelo menos um exemplo prático ou estudo de caso se aplicável.
-    - Mínimo de 600 palavras.
-    - Não inclua o título do capítulo no início (o sistema já adiciona).
+    Diretrizes de Conteúdo (Foco em Valor para Venda):
+    1. O conteúdo deve ser acionável e prático. Evite enrolação.
+    2. Use um tom de autoridade e empatia.
+    3. Use formatação Markdown rica:
+       - Use subtítulos (## e ###) para quebrar o texto.
+       - Use listas (bullets) para facilitar a leitura.
+       - Use negrito (**texto**) para enfatizar pontos chave.
+    4. Estrutura sugerida:
+       - Introdução engajadora (Hook).
+       - Desenvolvimento do conceito.
+       - Exemplo prático ou Estudo de Caso.
+       - "Dica de Ouro" ou exercício prático.
+       - Conclusão breve do capítulo.
+    5. Tamanho: Pelo menos 800 palavras de conteúdo de alta qualidade.
+    
+    Retorne apenas o corpo do texto em Markdown.
   `;
 
   try {

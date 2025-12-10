@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   BookOpen, 
   Download, 
@@ -84,13 +84,11 @@ function App() {
   };
 
   const triggerContentGeneration = async (chapters: Chapter[], bookTitle: string, bookDesc: string) => {
-    // Generate chapters sequentially to avoid rate limits and maintain context order if we were using history (which we aren't, but it's good practice)
     const context = `Título: ${bookTitle}. Descrição: ${bookDesc}.`;
 
     for (let i = 0; i < chapters.length; i++) {
       const chapter = chapters[i];
       
-      // Update status to generating
       setEbookData(prev => {
         if (!prev) return null;
         const newChapters = [...prev.chapters];
@@ -98,7 +96,6 @@ function App() {
         return { ...prev, chapters: newChapters };
       });
       
-      // If it's the first chapter, select it so user can read immediately
       if (i === 0) setSelectedChapterId(chapter.id);
 
       try {
@@ -125,7 +122,56 @@ function App() {
   };
 
   const handleDownload = () => {
-    alert("Funcionalidade de exportação PDF estaria aqui. (Simulação: Arquivo baixado!)");
+    if (!ebookData) return;
+
+    // Convert markdown to simple HTML for the export
+    // This creates a single-file HTML book that can be opened or saved as PDF
+    const contentHtml = ebookData.chapters.map(c => `
+      <article style="page-break-before: always; margin-top: 40px;">
+        <h2 style="font-size: 24px; color: #333; border-bottom: 2px solid #eee; padding-bottom: 10px;">${c.title}</h2>
+        <div style="font-family: 'Merriweather', serif; line-height: 1.8; color: #1a1a1a; margin-top: 20px;">
+          ${c.content.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/### (.*?)<br\/>/g, '<h3>$1</h3>').replace(/## (.*?)<br\/>/g, '<h2>$1</h2>')}
+        </div>
+      </article>
+    `).join('');
+
+    const fileContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>${ebookData.title}</title>
+        <style>
+          body { font-family: 'Inter', sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; color: #1f2937; }
+          .cover { text-align: center; margin-bottom: 60px; page-break-after: always; }
+          .cover img { max-width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.2); border-radius: 8px; }
+          h1 { font-size: 42px; margin-top: 20px; color: #111827; }
+          .meta { color: #6b7280; font-size: 14px; margin-top: 10px; }
+        </style>
+      </head>
+      <body>
+        <div class="cover">
+          ${ebookData.coverImageBase64 ? `<img src="data:image/png;base64,${ebookData.coverImageBase64}" width="500" />` : ''}
+          <h1>${ebookData.title}</h1>
+          <p class="meta">${ebookData.targetAudience}</p>
+          <p>${ebookData.description}</p>
+        </div>
+        <div class="content">
+          ${contentHtml}
+        </div>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([fileContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${ebookData.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   // Renderers
@@ -136,20 +182,20 @@ function App() {
           <Sparkles className="w-8 h-8 text-brand-600" />
         </div>
         <h1 className="text-5xl md:text-6xl font-serif font-bold text-slate-900 tracking-tight">
-          Crie seu Best-Seller
+          Fábrica de E-books
         </h1>
         <p className="text-xl text-slate-600 leading-relaxed max-w-lg mx-auto">
-          Transforme uma ideia em um e-book completo e vendável em minutos. Com capa, capítulos e estratégia de vendas.
+          Crie um e-book completo com 10 capítulos, capa profissional e conteúdo pronto para venda em minutos.
         </p>
 
-        <div className="relative group">
+        <div className="relative group z-20">
           <div className="absolute -inset-1 bg-gradient-to-r from-brand-500 to-teal-500 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
           <div className="relative flex items-center bg-white rounded-lg shadow-xl p-2">
             <input
               type="text"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder="Sobre o que você quer escrever? (Ex: Marketing Digital para Iniciantes)"
+              placeholder="Tema lucrativo (Ex: Receitas Low Carb, Marketing Digital)"
               className="flex-1 p-4 outline-none text-lg text-slate-700 placeholder:text-slate-400 bg-transparent"
               onKeyDown={(e) => e.key === 'Enter' && handleStartGeneration()}
             />
@@ -161,7 +207,7 @@ function App() {
               {appState === AppState.PLANNING ? (
                 <Loader2 className="animate-spin" />
               ) : (
-                <>Gerar <ChevronRight className="w-5 h-5" /></>
+                <>Criar <ChevronRight className="w-5 h-5" /></>
               )}
             </button>
           </div>
@@ -169,14 +215,20 @@ function App() {
         
         {!hasApiKey() && (
            <div className="text-red-500 text-sm mt-2 flex items-center justify-center gap-2">
-             <AlertCircle size={16} /> API Key ausente. Verifique o README ou metadata.
+             <AlertCircle size={16} /> API Key ausente.
            </div>
+        )}
+
+        {error && (
+          <div className="text-amber-600 bg-amber-50 px-4 py-2 rounded-lg text-sm inline-block">
+            {error}
+          </div>
         )}
 
         <div className="flex items-center justify-center gap-8 text-sm text-slate-400 mt-8">
           <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-brand-500"/> Capa Inclusa</span>
-          <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-brand-500"/> 10 Capítulos</span>
-          <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-brand-500"/> Pronto para Venda</span>
+          <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-brand-500"/> Copywriting de Vendas</span>
+          <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-brand-500"/> Exportação Pronta</span>
         </div>
       </div>
     </div>
@@ -186,6 +238,7 @@ function App() {
     if (!ebookData) return null;
 
     const selectedChapter = ebookData.chapters.find(c => c.id === selectedChapterId);
+    const isFinished = generatedChaptersCount === ebookData.chapters.length;
 
     return (
       <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-slate-50">
@@ -202,19 +255,19 @@ function App() {
 
           <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
             <div className="mb-6">
-              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 px-2">Capa & Informações</h3>
+              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 px-2">Projeto</h3>
               <div 
                  onClick={() => setSelectedChapterId(null)} // Select dashboard/cover view
                  className={`cursor-pointer rounded-lg p-3 flex items-center gap-3 transition-colors ${selectedChapterId === null ? 'bg-brand-50 text-brand-700' : 'hover:bg-slate-50 text-slate-600'}`}
               >
                 <BookOpen className="w-5 h-5" />
-                <span className="font-medium text-sm">Visão Geral</span>
+                <span className="font-medium text-sm">Capa & Vendas</span>
               </div>
             </div>
 
             <div>
               <div className="flex items-center justify-between px-2 mb-3">
-                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Capítulos</h3>
+                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Conteúdo</h3>
                 <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
                   {generatedChaptersCount}/10
                 </span>
@@ -247,9 +300,10 @@ function App() {
           <div className="p-4 border-t border-slate-100">
              <button 
                onClick={handleDownload}
-               className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white py-3 rounded-lg font-medium hover:bg-slate-800 transition-colors"
+               disabled={!isFinished}
+               className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white py-3 rounded-lg font-medium hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
              >
-               <Download className="w-4 h-4" /> Exportar E-book
+               {isFinished ? <><Download className="w-4 h-4" /> Baixar E-book</> : <><Loader2 className="w-4 h-4 animate-spin" /> Gerando...</>}
              </button>
           </div>
         </div>
@@ -317,7 +371,7 @@ function App() {
                       onClick={() => setSelectedChapterId(1)}
                       className="px-6 py-3 bg-brand-600 text-white font-semibold rounded-lg shadow-lg shadow-brand-200 hover:bg-brand-700 transition-all hover:-translate-y-1"
                     >
-                      Começar a Ler
+                      Ler Conteúdo
                     </button>
                     {appState !== AppState.FINISHED && (
                        <div className="flex items-center gap-3 text-sm text-slate-500 bg-white px-4 py-3 rounded-lg border border-slate-200 shadow-sm">
@@ -333,15 +387,15 @@ function App() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                  <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                     <div className="text-4xl font-bold text-slate-900 mb-1">10</div>
-                    <div className="text-sm text-slate-500 font-medium uppercase tracking-wide">Capítulos</div>
+                    <div className="text-sm text-slate-500 font-medium uppercase tracking-wide">Capítulos Completos</div>
                  </div>
                  <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                    <div className="text-4xl font-bold text-slate-900 mb-1">High</div>
-                    <div className="text-sm text-slate-500 font-medium uppercase tracking-wide">Resolução (Capa)</div>
+                    <div className="text-4xl font-bold text-slate-900 mb-1">HQ</div>
+                    <div className="text-sm text-slate-500 font-medium uppercase tracking-wide">Capa Alta Definição</div>
                  </div>
                  <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                    <div className="text-4xl font-bold text-slate-900 mb-1">A4</div>
-                    <div className="text-sm text-slate-500 font-medium uppercase tracking-wide">Formato</div>
+                    <div className="text-4xl font-bold text-slate-900 mb-1">HTML</div>
+                    <div className="text-sm text-slate-500 font-medium uppercase tracking-wide">Arquivo Fonte</div>
                  </div>
               </div>
             </div>
